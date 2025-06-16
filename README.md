@@ -6,7 +6,7 @@
 | Name             | Email                      
 |----------------  |----------------------------
 | Harshit Mohindra | mohindraharshit04@gmail.com    
-| Harpal Singh     | harpalvirk167gmail.com
+| Harpal Singh     | harpalvirk167@gmail.com
 | Aman Singh       | amansingh453368@gmail.com  
 | Jatin Kamboj     | jatinkamboj024@gmail.com   
 
