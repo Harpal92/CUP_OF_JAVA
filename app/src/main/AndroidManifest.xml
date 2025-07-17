@@ -24,6 +24,8 @@
         android:theme="@style/Theme.InTrack"
         tools:targetApi="31">
         <activity android:name=".BLEScanActivity" />
+        <activity android:name=".MapActivity" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

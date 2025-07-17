@@ -12,6 +12,10 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.widget.Toast;
+import android.content.Intent;
+import android.view.View;
+import android.widget.Button;
+
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -24,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class BLEScanActivity extends AppCompatActivity {
+    private Button openMapButton;
+
 
     private static final int PERMISSION_REQUEST_CODE = 1001;
 
@@ -38,6 +44,14 @@ public class BLEScanActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ble_scan); // Use correct layout
+        openMapButton = findViewById(R.id.openMapButton);
+
+        openMapButton.setOnClickListener(v -> {
+            // Navigate to MapActivity
+            Intent intent = new Intent(BLEScanActivity.this, MapActivity.class);
+            startActivity(intent);
+        });
+
 
         recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -129,6 +143,8 @@ public class BLEScanActivity extends AppCompatActivity {
             if (!deviceList.contains(newDevice)) {
                 deviceList.add(newDevice);
                 adapter.notifyItemInserted(deviceList.size() - 1);
+                openMapButton.setVisibility(View.VISIBLE);
+
             }
         }
     };
