@@ -2,141 +2,131 @@ package com.example.intrack;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
-import java.util.List;
 
 public class BLEScanActivity extends AppCompatActivity {
 
-    private static final int PERMISSION_REQUEST_CODE = 1001;
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_PERMISSIONS = 2;
+    private static final double RSSI_AT_ONE_METER = -59; // Typical value
+    private static final double PATH_LOSS_EXPONENT = 2.0;
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bluetoothLeScanner;
-
-    private RecyclerView recyclerView;
-    private DeviceAdapter adapter;
-    private final List<Device> deviceList = new ArrayList<>();
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_ble_scan); // Use correct layout
-
-        recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new DeviceAdapter(deviceList);
-        recyclerView.setAdapter(adapter);
-
-        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        bluetoothAdapter = bluetoothManager.getAdapter();
-
-        if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
-            Toast.makeText(this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-
-        bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-
-        checkPermissions();
-    }
-
-    private void checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{
-                        Manifest.permission.BLUETOOTH_SCAN,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                }, PERMISSION_REQUEST_CODE);
-            } else {
-                startScanning();
-            }
-        } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                }, PERMISSION_REQUEST_CODE);
-            } else {
-                startScanning();
-            }
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-
-            if (allGranted) {
-                startScanning();
-            } else {
-                Toast.makeText(this, "Permission denied. Cannot scan for devices.", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    private void startScanning() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Missing permission for scanning", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        bluetoothLeScanner.startScan(scanCallback);
-        Toast.makeText(this, "Scanning started...", Toast.LENGTH_SHORT).show();
-    }
+    private final ArrayList<Device> deviceList = new ArrayList<>();
 
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
-            BluetoothDevice device = result.getDevice();
-
-            if (ActivityCompat.checkSelfPermission(BLEScanActivity.this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                return;
-            }
-
-            String name = (device.getName() != null) ? device.getName() : "Unnamed Device";
-            String address = device.getAddress();
-
+            String name = result.getDevice().getName();
+            String address = result.getDevice().getAddress();
             int rssi = result.getRssi();
-            Device newDevice = new Device(name, address, rssi);
 
-            if (!deviceList.contains(newDevice)) {
-                deviceList.add(newDevice);
-                adapter.notifyItemInserted(deviceList.size() - 1);
+            // Manually measured reference RSSI at 1 meter
+            int rssiAtOneMeter = -60;
+
+// Manually calculated path loss exponent (environment factor)
+            double pathLossExponent = 2.5;
+
+// Use the updated method
+            double distance = DistanceCalculator.calculateDistance(rssi, rssiAtOneMeter, pathLossExponent);
+
+
+            // Show in toast temporarily
+            String info = "Device: " + name + "\nRSSI: " + rssi + " dBm\nDistance: " + String.format("%.2f", distance) + " m";
+            Toast.makeText(BLEScanActivity.this, info, Toast.LENGTH_SHORT).show();
+
+            // Create device object
+            distance = DistanceCalculator.calculateDistance(rssi, -60, 2.5);
+
+            Device newDevice = new Device(name, address, rssi, distance);
+
+
+
+            // Add if not already added
+            boolean alreadyAdded = false;
+            for (Device d : deviceList) {
+                if (d.getAddress().equals(address)) {
+                    alreadyAdded = true;
+                    break;
+                }
             }
+
+            if (!alreadyAdded) {
+                deviceList.add(newDevice);
+            }
+
+            // Launch map activity after 4 beacons
+            if (deviceList.size() >= 3) {  // Use top 3 devices
+                bluetoothLeScanner.stopScan(scanCallback);
+
+                ArrayList<Device> topDevices = new ArrayList<>(deviceList.subList(0, 3));
+
+                Intent intent = new Intent(BLEScanActivity.this, MapActivity.class);
+                intent.putExtra("deviceList", topDevices);
+
+                startActivity(intent);
+                finish();
+            }
+
         }
     };
 
     @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_ble_scan);
+
+        // Init Bluetooth
+        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        bluetoothAdapter = bluetoothManager.getAdapter();
+
+        // Permission check
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_FINE_LOCATION},
+                    REQUEST_PERMISSIONS);
+        } else {
+            startScan();
+        }
+    }
+
+    private void startScan() {
+        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
+            bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+            bluetoothLeScanner.startScan(scanCallback);
+
+            // Auto-stop after 20 sec (safety)
+            new Handler().postDelayed(() -> {
+                if (bluetoothLeScanner != null) {
+                    bluetoothLeScanner.stopScan(scanCallback);
+                }
+            }, 20000);
+        } else {
+            Toast.makeText(this, "Enable Bluetooth to scan", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (bluetoothLeScanner != null && ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED) {
+        if (bluetoothLeScanner != null) {
             bluetoothLeScanner.stopScan(scanCallback);
         }
     }
