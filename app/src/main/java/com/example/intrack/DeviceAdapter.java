@@ -21,7 +21,8 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.DeviceView
     @NonNull
     @Override
     public DeviceViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.device_item, parent, false);
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.device_item, parent, false);
         return new DeviceViewHolder(view);
     }
 
@@ -30,9 +31,8 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.DeviceView
         Device device = deviceList.get(position);
         holder.nameTextView.setText(device.getName());
         holder.addressTextView.setText(device.getAddress());
-        holder.tvRssi.setText("Rssi:"+ device.getRssi());
-        holder.tvDistance.setText(String.format("Distance: %.2f m",device.getDistance()));
-
+        holder.rssiTextView.setText("RSSI: " + device.getRssi());
+        holder.distanceTextView.setText(String.format("Distance: %.2f m", device.getDistance()));
     }
 
     @Override
@@ -41,17 +41,14 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceAdapter.DeviceView
     }
 
     public static class DeviceViewHolder extends RecyclerView.ViewHolder {
-        TextView nameTextView;
-        TextView addressTextView;
-        TextView tvRssi;
-        TextView tvDistance;
+        TextView nameTextView, addressTextView, rssiTextView, distanceTextView;
 
         public DeviceViewHolder(@NonNull View itemView) {
             super(itemView);
-            nameTextView = itemView.findViewById(R.id.nameTextView);
-            addressTextView = itemView.findViewById(R.id.addressTextView);
-            tvRssi=itemView.findViewById(R.id.tvRssi);
-            tvDistance=itemView.findViewById(R.id.tvDistance);
+            nameTextView = itemView.findViewById(R.id.tvName);
+            addressTextView = itemView.findViewById(R.id.tvAddress);
+            rssiTextView = itemView.findViewById(R.id.tvRssi);
+            distanceTextView = itemView.findViewById(R.id.tvDistance);
         }
     }
 }

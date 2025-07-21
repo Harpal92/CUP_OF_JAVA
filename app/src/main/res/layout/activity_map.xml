@@ -1,12 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mapContainer"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Map Image -->
     <com.github.chrisbanes.photoview.PhotoView
-        android:id="@+id/svgMap"
+        android:id="@+id/mapView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:contentDescription="Map" />
+        android:scaleType="centerInside" />
 
+    <!-- Path Line -->
+    <com.example.intrack.PathView
+        android:id="@+id/pathView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- User Marker -->
+    <ImageView
+        android:id="@+id/userMarker"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/user_marker"
+        android:visibility="visible" />
+
+    <!-- Destination Marker -->
+    <ImageView
+        android:id="@+id/destinationMarker"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/destination_marker"
+        android:visibility="gone" />
 </FrameLayout>
