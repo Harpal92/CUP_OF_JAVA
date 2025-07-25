@@ -11,6 +11,10 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -21,14 +25,20 @@ import java.util.ArrayList;
 
 public class BLEScanActivity extends AppCompatActivity {
 
-    private static final int REQUEST_ENABLE_BT = 1;
-    private static final int REQUEST_PERMISSIONS = 2;
-    private static final double RSSI_AT_ONE_METER = -59; // Typical value
-    private static final double PATH_LOSS_EXPONENT = 2.0;
+    private static final int REQUEST_PERMISSIONS = 1;
+    private static final long NO_NEW_DEVICE_TIMEOUT = 5000; // 5 seconds
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bluetoothLeScanner;
     private final ArrayList<Device> deviceList = new ArrayList<>();
+    private final ArrayList<String> deviceDisplayList = new ArrayList<>();
+    private ArrayAdapter<String> adapter;
+
+    private ListView listView;
+    private Button openMapBtn;
+
+    private Handler handler = new Handler();
+    private long lastDeviceFoundTime = 0;
 
     private final ScanCallback scanCallback = new ScanCallback() {
         @Override
@@ -37,53 +47,36 @@ public class BLEScanActivity extends AppCompatActivity {
             String address = result.getDevice().getAddress();
             int rssi = result.getRssi();
 
-            // Manually measured reference RSSI at 1 meter
-            int rssiAtOneMeter = -60;
+            if (name == null) name = "Unknown";
 
-// Manually calculated path loss exponent (environment factor)
-            double pathLossExponent = 2.5;
-
-// Use the updated method
-            double distance = DistanceCalculator.calculateDistance(rssi, rssiAtOneMeter, pathLossExponent);
-
-
-            // Show in toast temporarily
-            String info = "Device: " + name + "\nRSSI: " + rssi + " dBm\nDistance: " + String.format("%.2f", distance) + " m";
-            Toast.makeText(BLEScanActivity.this, info, Toast.LENGTH_SHORT).show();
-
-            // Create device object
-            distance = DistanceCalculator.calculateDistance(rssi, -60, 2.5);
-
-            Device newDevice = new Device(name, address, rssi, distance);
-
-
-
-            // Add if not already added
-            boolean alreadyAdded = false;
+            // Avoid duplicates
+            boolean exists = false;
             for (Device d : deviceList) {
                 if (d.getAddress().equals(address)) {
-                    alreadyAdded = true;
+                    exists = true;
                     break;
                 }
             }
 
-            if (!alreadyAdded) {
-                deviceList.add(newDevice);
+            if (!exists) {
+                double distance = DistanceCalculator.calculateDistance(rssi, -60, 2.5);
+                Device device = new Device(name, address, rssi, distance);
+                deviceList.add(device);
+                deviceDisplayList.add(name + "\nRSSI: " + rssi + " dBm\nDistance: " + String.format("%.2f", distance) + " m");
+                adapter.notifyDataSetChanged();
+                lastDeviceFoundTime = System.currentTimeMillis();
             }
+        }
+    };
 
-            // Launch map activity after 4 beacons
-            if (deviceList.size() >= 3) {  // Use top 3 devices
-                bluetoothLeScanner.stopScan(scanCallback);
-
-                ArrayList<Device> topDevices = new ArrayList<>(deviceList.subList(0, 3));
-
-                Intent intent = new Intent(BLEScanActivity.this, MapActivity.class);
-                intent.putExtra("deviceList", topDevices);
-
-                startActivity(intent);
-                finish();
+    private final Runnable checkNoNewDevicesRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastDeviceFoundTime > NO_NEW_DEVICE_TIMEOUT && deviceList.size() > 0) {
+                openMapBtn.setVisibility(View.VISIBLE);
             }
-
+            handler.postDelayed(this, 2000);
         }
     };
 
@@ -92,32 +85,45 @@ public class BLEScanActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_ble_scan);
 
-        // Init Bluetooth
+        listView = findViewById(R.id.deviceListView);
+        openMapBtn = findViewById(R.id.openMapButton);
+        openMapBtn.setVisibility(View.GONE);
+
+        adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, deviceDisplayList);
+        listView.setAdapter(adapter);
+
         BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         bluetoothAdapter = bluetoothManager.getAdapter();
 
-        // Permission check
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_FINE_LOCATION},
-                    REQUEST_PERMISSIONS);
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    }, REQUEST_PERMISSIONS);
         } else {
             startScan();
         }
+
+        openMapBtn.setOnClickListener(v -> {
+            if (bluetoothLeScanner != null) {
+                bluetoothLeScanner.stopScan(scanCallback);
+            }
+            Intent intent = new Intent(BLEScanActivity.this, MapActivity.class);
+            intent.putExtra("deviceList", deviceList);
+            startActivity(intent);
+        });
     }
 
     private void startScan() {
         if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
             bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
             bluetoothLeScanner.startScan(scanCallback);
-
-            // Auto-stop after 20 sec (safety)
-            new Handler().postDelayed(() -> {
-                if (bluetoothLeScanner != null) {
-                    bluetoothLeScanner.stopScan(scanCallback);
-                }
-            }, 20000);
+            lastDeviceFoundTime = System.currentTimeMillis();
+            handler.postDelayed(checkNoNewDevicesRunnable, 2000);
         } else {
             Toast.makeText(this, "Enable Bluetooth to scan", Toast.LENGTH_SHORT).show();
         }
@@ -129,5 +135,6 @@ public class BLEScanActivity extends AppCompatActivity {
         if (bluetoothLeScanner != null) {
             bluetoothLeScanner.stopScan(scanCallback);
         }
+        handler.removeCallbacks(checkNoNewDevicesRunnable);
     }
 }

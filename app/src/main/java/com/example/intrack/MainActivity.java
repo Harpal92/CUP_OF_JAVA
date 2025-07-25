@@ -3,6 +3,7 @@ package com.example.intrack;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.View;
@@ -12,16 +13,19 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends AppCompatActivity {
-    ImageView splashimage;
-    FrameLayout home;
-    Button scanbtn;
+
+    private static final int REQUEST_PERMISSIONS = 101;
+
+    ImageView splashImage;
+    FrameLayout homeLayout;
+    Button scanButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,50 +33,85 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        splashimage = findViewById(R.id.imageView);
-        home = findViewById(R.id.home);
-        scanbtn = findViewById(R.id.button2);
+        splashImage = findViewById(R.id.imageView);
+        homeLayout = findViewById(R.id.home);
+        scanButton = findViewById(R.id.button2);
 
-        // Request runtime permissions
-        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+        // Start with splash screen
+        homeLayout.setVisibility(View.GONE);
 
-            requestPermissions(new String[]{
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_CONNECT
-            }, 101);
+        // Delay to simulate splash
+        new Handler().postDelayed(() -> {
+            splashImage.setVisibility(View.GONE);
+            homeLayout.setVisibility(View.VISIBLE);
+        }, 3000);  // 3 seconds
+
+        // Permissions for BLE scanning (Android 12+)
+        if (!hasRequiredPermissions()) {
+            requestPermissions();
         }
 
-        // Splash screen delay
-        new Handler().postDelayed(() -> {
-            splashimage.setVisibility(View.GONE);
-            home.setVisibility(View.VISIBLE);
-            Toast.makeText(this, "Splash done", Toast.LENGTH_SHORT).show();
-        }, 3000);
-
-        // Navigate to BLE scanner
-        scanbtn.setOnClickListener(v -> {
+        // Open BLEScanActivity on click
+        scanButton.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, BLEScanActivity.class);
             startActivity(intent);
         });
 
+        // Insets for full screen padding
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
+            v.setPadding(
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars()).left,
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars()).top,
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars()).right,
+                    insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
+            );
             return insets;
         });
     }
 
+    private boolean hasRequiredPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+                    ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+                    ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
+    private void requestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    }, REQUEST_PERMISSIONS);
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                    }, REQUEST_PERMISSIONS);
+        }
+    }
+
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 101) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permissions granted!", Toast.LENGTH_SHORT).show();
+
+        if (requestCode == REQUEST_PERMISSIONS) {
+            boolean allGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+
+            if (allGranted) {
+                Toast.makeText(this, "Permissions granted", Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(this, "Permissions denied. BLE scan won't work.", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Some permissions are missing. BLE features may not work.", Toast.LENGTH_LONG).show();
             }
         }
     }
